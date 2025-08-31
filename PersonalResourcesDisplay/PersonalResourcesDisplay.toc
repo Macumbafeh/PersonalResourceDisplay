@@ -1,0 +1,15 @@
+## Interface: 30300
+## Title: Personal Resources Display
+## Notes: Mimics the retail Personal Resource Display
+## Author: Kader (extracted by Macumba)
+## Version: 1.1
+## SavedVariables: PersonalResourcesDB
+## OptionalDeps: LibSharedMedia-3.0
+
+Libs\LibStub\LibStub.lua
+Libs\LibSharedMedia-3.0\LibSharedMedia-3.0.lua 
+Libs\AceGUI-3.0\AceGUI-3.0.xml
+Libs\AceConfig-3.0\AceConfig-3.0.xml
+
+
+PersonalResourcesDisplay.lua

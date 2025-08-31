@@ -2,7 +2,7 @@
 ## Title: Personal Resources Display
 ## Notes: Mimics the retail Personal Resource Display
 ## Author: Kader (extracted by Macumba)
-## Version: 1.1
+## Version: 1.2
 ## SavedVariables: PersonalResourcesDB
 ## OptionalDeps: LibSharedMedia-3.0
 

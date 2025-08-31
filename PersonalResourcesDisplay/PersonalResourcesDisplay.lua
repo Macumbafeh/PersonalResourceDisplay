@@ -21,6 +21,37 @@ local defaults = {
     yOfs = -120,
     healthColor = {0.2, 0.7, 0.2, 1}, -- Green
     powerColor = {0.2, 0.2, 0.7, 1},   -- Blue
+	classHealth = false,
+}
+
+-- Power types (from FrameXML/UnitFrame.lua)
+local POWER_TYPES = {
+    [0] = "MANA",
+    [1] = "RAGE",
+    [3] = "ENERGY",
+    [6] = "RUNIC_POWER",
+}
+
+-- Class-specific default power colors
+local POWER_COLORS = {
+    MANA = {0.0, 0.5, 1.0},           -- Blue
+    RAGE = {1.0, 0.0, 0.0},           -- Red
+    ENERGY = {1.0, 1.0, 0.0},         -- Yellow
+    RUNIC_POWER = {0.0, 0.8, 1.0},    -- Light Blue
+}
+
+-- Class colors (from RAID_CLASS_COLORS in 3.3.5)
+local CLASS_COLORS = {
+    WARRIOR    = {0.78, 0.61, 0.43}, -- Tan
+    PALADIN    = {0.96, 0.55, 0.73}, -- Pink
+    HUNTER     = {0.67, 0.83, 0.45}, -- Green
+    ROGUE      = {1.00, 0.96, 0.41}, -- Yellow
+    PRIEST     = {1.00, 1.00, 1.00}, -- White
+    DEATHKNIGHT= {0.77, 0.12, 0.23}, -- Blood Red
+    SHAMAN     = {0.00, 0.44, 0.87}, -- Blue
+    MAGE       = {0.41, 0.80, 0.94}, -- Cyan
+    WARLOCK    = {0.58, 0.51, 0.79}, -- Purple
+    DRUID      = {1.00, 0.49, 0.04}, -- Orange
 }
 
 -- Fallback media fetch
@@ -114,21 +145,43 @@ local function CreateBar(parent, color, texture, name)
     return bar
 end
 
--- Update health and power values
+
+-- Update health and power values + color based on power type
 local function UpdateBars(self)
     if not self.health or not self.power then
-        -- Bars not created yet
         return
     end
 
     local hp, hpMax = UnitHealth("player"), UnitHealthMax("player")
-    local pw, pwMax = UnitPower("player"), UnitPowerMax("player")
-    local percentHP = hpMax > 0 and (hp / hpMax) * 100 or 0
-    local percentPW = pwMax > 0 and (pw / pwMax) * 100 or 0
+    local power, powerMax = UnitPower("player"), UnitPowerMax("player")
+    local powerType = UnitPowerType("player")
+    local powerName = POWER_TYPES[powerType] or "MANA"
 
+    local percentHP = hpMax > 0 and (hp / hpMax) * 100 or 0
+    local percentPW = powerMax > 0 and (power / powerMax) * 100 or 0
+
+    -- Update values
     self.health:SetValue(percentHP)
     self.power:SetValue(percentPW)
 
+    -- Dynamic power bar color
+    local r, g, b = unpack(POWER_COLORS[powerName] or POWER_COLORS.MANA)
+    self.power:SetStatusBarColor(r, g, b)
+
+    -- Health bar color: class color or custom
+    if DB.classHealth then
+        local _, playerClass = UnitClass("player")
+        local classColor = CLASS_COLORS[playerClass]
+        if classColor then
+            self.health:SetStatusBarColor(classColor[1], classColor[2], classColor[3])
+        else
+            self.health:SetStatusBarColor(0.2, 0.7, 0.2) -- fallback green
+        end
+    else
+        self.health:SetStatusBarColor(unpack(DB.healthColor))
+    end
+
+    -- Text
     if DB.text then
         self.health.text:SetText(string.format("%.0f%%", percentHP))
         self.power.text:SetText(string.format("%.0f%%", percentPW))
@@ -177,7 +230,9 @@ end
 -- Initialize frame
 local function Initialize()
     SetupDatabase()
-
+	
+	local _, playerClass = UnitClass("player")
+	
     local f = CreateFrame("Frame", "PersonalResourcesFrame", UIParent)
     if not f then
         print("PersonalResourcesDisplay: Failed to create main frame!")
@@ -252,7 +307,24 @@ local function Initialize()
             end
         end
     end)
+	
+	f:RegisterEvent("UNIT_DISPLAYPOWER")
+	f:RegisterEvent("PLAYER_TALENT_UPDATE")
+	f:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
 
+	-- And update the OnEvent script:
+	f:SetScript("OnEvent", function(self, event)
+		if event == "PLAYER_REGEN_ENABLED" then
+			if DB.combat then self:Show() end
+		elseif event == "PLAYER_REGEN_DISABLED" then
+			if DB.combat then self:Hide() end
+		elseif event == "UNIT_DISPLAYPOWER" and arg1 == "player" then
+			-- Power type changed (e.g., shapeshift)
+			UpdateBars(self)
+		elseif event == "PLAYER_TALENT_UPDATE" or event == "UPDATE_SHAPESHIFT_FORM" then
+			UpdateBars(self)
+		end
+	end)
     -- Show/hide based on enabled state
 	if DB.enabled then
 		f:Show()
@@ -459,6 +531,19 @@ local function GetOptions()
 					RefreshBars()
                 end,
             },
+			classHealth = {
+				type = "toggle",
+				name = "Use Class Color for Health",
+				desc = "Health bar will use your class color (e.g., red for Warrior, orange for Druid).",
+				order = 14.5,
+				get = function() return DB.classHealth end,
+				set = function(_, v)
+					DB.classHealth = v
+					if PersonalResourcesFrame and PersonalResourcesFrame.health then
+						UpdateBars(PersonalResourcesFrame)
+					end
+				end,
+			},
             healthColor = {
                 type = "color",
                 name = "Health Bar Color",
@@ -470,8 +555,8 @@ local function GetOptions()
                 end,
                 set = function(_, r, g, b, a)
                     DB.healthColor = {r, g, b, a}
-					RefreshBars()
                 end,
+				disabled = function() return DB.classHealth end,
             },
             powerColor = {
                 type = "color",
@@ -484,7 +569,6 @@ local function GetOptions()
                 end,
                 set = function(_, r, g, b, a)
                     DB.powerColor = {r, g, b, a}
-					RefreshBars()
                 end,
             },
         }

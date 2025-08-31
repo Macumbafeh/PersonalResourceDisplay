@@ -1,5 +1,6 @@
 # PersonalResourceDisplay
-3.3.5 version of Personal ResourceDisplay extracted from Kpack
+3.3.5 version of Personal ResourceDisplay extracted from Kpack.
+
 You can move the bars with alt + left click and drag
 
 # Commands
